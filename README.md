@@ -59,12 +59,23 @@ A Model Context Protocol (MCP) server for interacting with the Godot game engine
 
 Godot MCP enables AI agents to launch the Godot editor, run projects, capture debug output, and control project execution. This direct feedback loop helps agents understand what works and what doesn't in real Godot projects, leading to better code generation and debugging assistance.
 
+> This fork preserves the upstream project/scene tools and adds a bounded,
+> transient playtest bridge. The bridge is intended for deterministic local QA,
+> including keyboard, mouse, and analog joypad input without requiring the game
+> window to retain focus.
+
 ## Features
 
 - **Launch Godot Editor**: Open the Godot editor for a specific project
 - **Run Godot Projects**: Execute Godot projects in debug mode
 - **Capture Debug Output**: Retrieve console output and error messages
 - **Control Execution**: Start and stop Godot projects programmatically
+- **Instrumented Playtests**:
+  - Start one headless or windowed playtest session
+  - Send InputMap actions, keys, mouse events, joypad buttons, and analog axes
+  - Run bounded input sequences without changing desktop focus
+  - Capture a windowed game viewport as PNG
+  - Read bounded runtime state, wait for zero-argument signals, and inspect errors
 - **Get Godot Version**: Retrieve the installed Godot version
 - **List Godot Projects**: Find Godot projects in a specified directory
 - **Project Analysis**: Get detailed information about project structure
@@ -83,6 +94,27 @@ Godot MCP enables AI agents to launch the Godot editor, run projects, capture de
 - [Godot Engine](https://godotengine.org/download) installed on your system
 - Node.js (>=18.0.0) and npm
 - An AI agent that supports MCP
+
+## Playtest bridge security and lifecycle
+
+`start_playtest` temporarily adds a uniquely named autoload to the selected
+project, starts a localhost-only TCP listener on an ephemeral port, and
+authenticates the bridge with a random 192-bit token. Once Godot connects, the
+original `project.godot` bytes are restored and the temporary script is removed.
+Startup failure, normal stop, process exit, and MCP shutdown use the same
+restoration path. Only one playtest session can exist per server.
+
+The playtest API deliberately exposes typed input events and a small read-only
+state projection. It does not execute arbitrary GDScript, invoke arbitrary node
+methods, or mutate arbitrary properties. `wait_for_signal` accepts only an
+absolute `/root/...` node path and a zero-argument signal. Headless playtests can
+exercise input and state, but a renderer may not expose viewport pixels; use
+`mode: "windowed"` when `capture_viewport` is required.
+
+Playtest tools: `start_playtest`, `stop_playtest`, `playtest_status`,
+`send_action`, `send_key`, `send_mouse`, `send_joypad_button`,
+`send_joypad_motion`, `run_input_sequence`, `capture_viewport`,
+`get_runtime_state`, `wait_for_signal`, and `get_runtime_errors`.
 
 ## Quick Start
 

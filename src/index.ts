@@ -21,6 +21,7 @@ import {
   ListToolsRequestSchema,
   McpError,
 } from '@modelcontextprotocol/sdk/types.js';
+import { PlaytestTools, playtestToolDefinitions } from './playtest-tools.js';
 
 // Check if debug mode is enabled
 const DEBUG_MODE: boolean = process.env.DEBUG === 'true';
@@ -68,6 +69,7 @@ class GodotServer {
   private operationsScriptPath: string;
   private validatedPaths: Map<string, boolean> = new Map();
   private strictPathValidation: boolean = false;
+  private playtestTools = new PlaytestTools();
 
   /**
    * Parameter name mappings between snake_case and camelCase
@@ -139,7 +141,7 @@ class GodotServer {
     this.server = new Server(
       {
         name: 'godot-mcp',
-        version: '0.1.0',
+        version: '0.2.0-orxtal.1',
       },
       {
         capabilities: {
@@ -393,6 +395,7 @@ class GodotServer {
    */
   private async cleanup() {
     this.logDebug('Cleaning up resources');
+    await this.playtestTools.cleanup();
     if (this.activeProcess) {
       this.logDebug('Killing active Godot process');
       this.activeProcess.process.kill();
@@ -923,6 +926,7 @@ class GodotServer {
             required: ['projectPath'],
           },
         },
+        ...playtestToolDefinitions,
       ],
     }));
 
@@ -958,11 +962,18 @@ class GodotServer {
           return await this.handleGetUid(request.params.arguments);
         case 'update_project_uids':
           return await this.handleUpdateProjectUids(request.params.arguments);
-        default:
+        default: {
+          const playtestResponse = await this.playtestTools.handle(
+            request.params.name,
+            request.params.arguments,
+            this.godotPath,
+          );
+          if (playtestResponse) return playtestResponse;
           throw new McpError(
             ErrorCode.MethodNotFound,
             `Unknown tool: ${request.params.name}`
           );
+        }
       }
     });
   }
